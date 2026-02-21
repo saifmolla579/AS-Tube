@@ -16,6 +16,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [customThumbnail, setCustomThumbnail] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -23,16 +24,28 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
   // Ref to track if the current fetch should be ignored (canceled)
   const isCanceledRef = useRef(false);
 
-  const extractYoutubeId = (url: string) => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
+  const extractVideoId = (url: string) => {
+    // YouTube
+    const ytRegExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const ytMatch = url.match(ytRegExp);
+    if (ytMatch && ytMatch[2].length === 11) return { id: ytMatch[2], type: 'youtube' };
+
+    // Google Drive
+    const gdRegExp = /\/file\/d\/([^\/]+)/;
+    const gdMatch = url.match(gdRegExp);
+    if (gdMatch && gdMatch[1]) return { id: gdMatch[1], type: 'googledrive' };
+
+    const gdIdRegExp = /id=([^\&]+)/;
+    const gdIdMatch = url.match(gdIdRegExp);
+    if (gdIdMatch && gdIdMatch[1]) return { id: gdIdMatch[1], type: 'googledrive' };
+
+    return null;
   };
 
   const handleFetchMetadata = async () => {
     const prompt = uploadType === 'youtube' ? ytUrl : title || file?.name;
     if (!prompt) {
-      alert(uploadType === 'youtube' ? "Please enter a valid YouTube URL first." : "Please enter a title or select a file first.");
+      alert(uploadType === 'youtube' ? "Please enter a valid URL first." : "Please enter a title or select a file first.");
       return;
     }
 
@@ -83,29 +96,43 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
     }
   };
 
+  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      const url = URL.createObjectURL(selectedFile);
+      setCustomThumbnail(url);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     let finalUrl = '';
     let finalThumbnail = '';
     let isYoutube = false;
+    let isGoogleDrive = false;
 
     if (uploadType === 'youtube') {
-      const id = extractYoutubeId(ytUrl);
-      if (!id) {
-        alert("Invalid YouTube URL");
+      const videoInfo = extractVideoId(ytUrl);
+      if (!videoInfo) {
+        alert("Invalid Video URL (YouTube or Google Drive supported)");
         return;
       }
-      finalUrl = id;
-      finalThumbnail = `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
-      isYoutube = true;
+      finalUrl = videoInfo.id;
+      if (videoInfo.type === 'youtube') {
+        finalThumbnail = customThumbnail || `https://img.youtube.com/vi/${videoInfo.id}/mqdefault.jpg`;
+        isYoutube = true;
+      } else {
+        finalThumbnail = customThumbnail || `https://picsum.photos/seed/${videoInfo.id}/640/360`;
+        isGoogleDrive = true;
+      }
     } else {
       if (!file) {
         alert("Please select a file");
         return;
       }
       finalUrl = videoPreview || '';
-      finalThumbnail = `https://picsum.photos/seed/${Math.random()}/640/360`;
+      finalThumbnail = customThumbnail || `https://picsum.photos/seed/${Math.random()}/640/360`;
     }
 
     setIsPublishing(true);
@@ -129,10 +156,11 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
       description,
       url: finalUrl,
       thumbnail: finalThumbnail,
-      duration: uploadType === 'youtube' ? 'YT' : '5:00',
+      duration: uploadType === 'youtube' ? (isYoutube ? 'YT' : 'GD') : '5:00',
       likes: 0,
       creator: 'TR SAIF',
-      isYoutube
+      isYoutube,
+      isGoogleDrive
     });
     
     setIsPublishing(false);
@@ -142,12 +170,13 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
     setYtUrl('');
     setTitle('');
     setDescription('');
+    setCustomThumbnail(null);
     onClose();
   };
 
   if (!isOpen) return null;
 
-  const ytId = extractYoutubeId(ytUrl);
+  const videoInfo = extractVideoId(ytUrl);
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-sm px-4">
@@ -185,8 +214,8 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
             onClick={() => setUploadType('youtube')}
             className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center space-x-2 ${uploadType === 'youtube' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'bg-[#121212] text-gray-400 border border-[#333]'}`}
           >
-            <i className="fab fa-youtube text-lg"></i> 
-            <span>YouTube Link</span>
+            <i className="fas fa-link text-lg"></i> 
+            <span>External Link</span>
           </button>
           <button 
             type="button"
@@ -203,24 +232,30 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
           <div className="flex flex-col space-y-4">
             {uploadType === 'youtube' ? (
               <div className="flex flex-col space-y-4">
-                <label className="text-sm font-medium text-gray-400">YouTube Video URL</label>
+                <label className="text-sm font-medium text-gray-400">YouTube or Google Drive URL</label>
                 <input 
                   type="text"
                   disabled={isPublishing}
-                  placeholder="Paste link: https://www.youtube.com/watch?v=..."
+                  placeholder="Paste link (YouTube or Google Drive)"
                   className="bg-[#121212] border border-[#333] rounded-xl px-4 py-3 text-sm focus:border-red-600 outline-none transition-all text-white disabled:opacity-50"
                   value={ytUrl}
                   onChange={(e) => setYtUrl(e.target.value)}
                 />
-                {ytId && (
+                {videoInfo && (
                   <div className="aspect-video rounded-xl overflow-hidden border border-[#333] relative shadow-lg bg-black group">
-                    <img 
-                      src={`https://img.youtube.com/vi/${ytId}/mqdefault.jpg`} 
-                      className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" 
-                      alt="Preview"
-                    />
+                    {videoInfo.type === 'youtube' ? (
+                      <img 
+                        src={`https://img.youtube.com/vi/${videoInfo.id}/mqdefault.jpg`} 
+                        className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" 
+                        alt="Preview"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-blue-600/20">
+                        <i className="fab fa-google-drive text-4xl text-blue-400"></i>
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                       <i className="fab fa-youtube text-4xl text-red-600"></i>
+                       <i className={`fab ${videoInfo.type === 'youtube' ? 'fa-youtube text-red-600' : 'fa-google-drive text-blue-400'} text-4xl`}></i>
                     </div>
                   </div>
                 )}
@@ -254,9 +289,9 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
                 <button 
                   type="button"
                   onClick={handleFetchMetadata}
-                  disabled={!ytId || isFetchingMetadata || isPublishing}
+                  disabled={!videoInfo || isFetchingMetadata || isPublishing}
                   className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center space-x-2 border transition-all ${
-                    !ytId || isFetchingMetadata
+                    !videoInfo || isFetchingMetadata
                       ? 'border-[#333] text-gray-600 cursor-not-allowed bg-[#1a1a1a]' 
                       : 'border-indigo-500/30 bg-indigo-600/10 text-indigo-400 hover:bg-indigo-600 hover:text-white shadow-lg shadow-indigo-900/10'
                   }`}
@@ -269,7 +304,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
                   ) : (
                     <>
                       <i className="fas fa-wand-magic-sparkles"></i>
-                      <span>Fetch YouTube Info</span>
+                      <span>Fetch Video Info</span>
                     </>
                   )}
                 </button>
@@ -316,11 +351,19 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
               <i className="fas fa-info-circle mr-2"></i>
               Use the AI button to automatically generate or fetch video titles and descriptions.
             </div>
+
+            {videoInfo?.type === 'googledrive' && (
+              <div className="p-4 bg-yellow-600/10 border border-yellow-500/20 rounded-xl text-[11px] text-yellow-500 leading-relaxed">
+                <i className="fas fa-exclamation-triangle mr-2"></i>
+                <strong>Google Drive Tip:</strong> To avoid "Access Denied" errors, make sure the file is shared as <strong>"Anyone with the link can view"</strong> in Google Drive.
+              </div>
+            )}
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
             <div className="space-y-4">
               <div className="relative">
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Video Title</label>
                 <input 
                   type="text" required placeholder="Video Title"
                   disabled={isPublishing}
@@ -329,12 +372,37 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
                 />
               </div>
 
-              <textarea 
-                rows={4} placeholder="Description..."
-                disabled={isPublishing}
-                className="w-full bg-[#121212] border border-[#333] rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none resize-none text-white disabled:opacity-50 transition-all"
-                value={description} onChange={(e) => setDescription(e.target.value)}
-              />
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Description</label>
+                <textarea 
+                  rows={3} placeholder="Description..."
+                  disabled={isPublishing}
+                  className="w-full bg-[#121212] border border-[#333] rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none resize-none text-white disabled:opacity-50 transition-all"
+                  value={description} onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1.5 block">Custom Thumbnail (Optional)</label>
+                <div className="flex items-center space-x-4">
+                  <div className="relative w-32 aspect-video bg-[#121212] border border-[#333] rounded-lg overflow-hidden flex items-center justify-center">
+                    {customThumbnail ? (
+                      <img src={customThumbnail} className="w-full h-full object-cover" alt="Custom Thumbnail" />
+                    ) : (
+                      <i className="fas fa-image text-gray-700 text-xl"></i>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleThumbnailChange}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                  </div>
+                  <div className="flex-1 text-[11px] text-gray-500">
+                    Click the box to upload a custom thumbnail image. If left empty, a default one will be used.
+                  </div>
+                </div>
+              </div>
             </div>
 
             <button 

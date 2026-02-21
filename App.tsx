@@ -244,9 +244,12 @@ const App: React.FC = () => {
   };
 
   const handleShare = (video: Video) => {
-    const shareUrl = video.isYoutube 
-      ? `https://www.youtube.com/watch?v=${video.url}` 
-      : video.url;
+    let shareUrl = video.url;
+    if (video.isYoutube) {
+      shareUrl = `https://www.youtube.com/watch?v=${video.url}`;
+    } else if (video.isGoogleDrive) {
+      shareUrl = `https://drive.google.com/file/d/${video.url}/view`;
+    }
     
     if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(shareUrl).then(() => {
@@ -292,6 +295,10 @@ const App: React.FC = () => {
   const getYoutubeEmbedUrl = (videoId: string) => {
     // Using youtube-nocookie.com is often more reliable in sandboxed environments
     return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&showinfo=0`;
+  };
+
+  const getGoogleDriveEmbedUrl = (fileId: string) => {
+    return `https://drive.google.com/file/d/${fileId}/preview`;
   };
 
   return (
@@ -419,6 +426,15 @@ const App: React.FC = () => {
                 <iframe 
                   title={selectedVideo.title}
                   src={getYoutubeEmbedUrl(selectedVideo.url)}
+                  className="w-full h-full"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                ></iframe>
+              ) : selectedVideo.isGoogleDrive ? (
+                <iframe 
+                  title={selectedVideo.title}
+                  src={getGoogleDriveEmbedUrl(selectedVideo.url)}
                   className="w-full h-full"
                   frameBorder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

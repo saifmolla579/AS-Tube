@@ -7,13 +7,13 @@ export const generateVideoMetadata = async (prompt: string, isUrl: boolean = fal
   
   try {
     const systemInstruction = isUrl 
-      ? "You are a YouTube metadata extractor. Use Google Search to find the EXACT title and description of the YouTube video from the provided URL. Return the data in valid JSON format. If you cannot find it, generate a plausible title and description based on the URL."
-      : "Generate a compelling YouTube-style title and a detailed description for a video based on this prompt or filename. Return as JSON.";
+      ? "You are a video metadata extractor. Use Google Search to find the title and description of the video from the provided YouTube or Google Drive URL. Return the data in valid JSON format. If you cannot find it, generate a plausible title and description based on the URL context."
+      : "Generate a compelling video title and a detailed description for a video based on this prompt or filename. Return as JSON.";
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: isUrl 
-        ? `Find the official title and description for this YouTube video: ${prompt}`
+        ? `Find the title and description for this video link: ${prompt}`
         : `Generate metadata for: ${prompt}`,
       config: {
         systemInstruction,

@@ -11,6 +11,7 @@ export interface Video {
   uploadedAt: string;
   creator: string;
   isYoutube?: boolean;
+  isGoogleDrive?: boolean;
 }
 
 export interface User {

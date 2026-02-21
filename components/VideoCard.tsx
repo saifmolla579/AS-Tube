@@ -47,6 +47,11 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick, isAdmin, onDelete
             YT
           </div>
         )}
+        {video.isGoogleDrive && (
+          <div className="absolute top-2 right-2 bg-blue-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-sm shadow-lg">
+            GD
+          </div>
+        )}
       </div>
       
       <div className="flex mt-3 space-x-3">
