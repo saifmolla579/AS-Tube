@@ -3,18 +3,21 @@ import React from 'react';
 
 interface SidebarProps {
   isOpen: boolean;
+  activeSection: string;
+  onSectionChange: (section: string) => void;
+  isAdmin: boolean;
+  onAdminToggle: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, onSectionChange, isAdmin, onAdminToggle }) => {
   const menuItems = [
-    { icon: 'fa-house', label: 'Home', active: true },
-    { icon: 'fa-bolt', label: 'Shorts', active: false },
-    { icon: 'fa-clapperboard', label: 'Subscriptions', active: false },
+    { icon: 'fa-house', label: 'Home', id: 'Home' },
+    { icon: 'fa-clapperboard', label: 'Subscriptions', id: 'Subscriptions' },
     { divider: true },
-    { icon: 'fa-clock-rotate-left', label: 'History', active: false },
-    { icon: 'fa-list-ul', label: 'Playlists', active: false },
-    { icon: 'fa-clock', label: 'Watch Later', active: false },
-    { icon: 'fa-thumbs-up', label: 'Liked Videos', active: false },
+    { icon: 'fa-clock-rotate-left', label: 'History', id: 'History' },
+    { icon: 'fa-list-ul', label: 'Playlists', id: 'Playlists' },
+    { icon: 'fa-clock', label: 'Watch Later', id: 'Watch Later' },
+    { icon: 'fa-thumbs-up', label: 'Liked Videos', id: 'Liked Videos' },
   ];
 
   if (!isOpen) return null;
@@ -28,8 +31,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
           ) : (
             <button 
               key={idx}
+              onClick={() => onSectionChange(item.id || '')}
               className={`flex items-center space-x-5 px-4 py-2.5 hover:bg-[#272727] mx-2 rounded-xl transition-colors ${
-                item.active ? 'bg-[#272727] font-medium' : ''
+                activeSection === item.id ? 'bg-[#272727] font-medium' : ''
               }`}
             >
               <i className={`fas ${item.icon} text-lg w-6`}></i>
@@ -37,6 +41,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
             </button>
           )
         ))}
+        
+        <div className="h-[1px] bg-[#3f3f3f] my-3 mx-4"></div>
+        <button 
+          onClick={onAdminToggle}
+          className={`flex items-center space-x-5 px-4 py-2.5 hover:bg-[#272727] mx-2 rounded-xl transition-colors ${isAdmin ? 'text-red-500' : 'text-gray-400'}`}
+        >
+          <i className={`fas ${isAdmin ? 'fa-unlock-alt' : 'fa-lock'} text-lg w-6`}></i>
+          <span className="text-sm font-medium">{isAdmin ? 'Close Admin Panel' : 'Admin Login'}</span>
+        </button>
       </div>
       
       <div className="px-6 py-4 mt-4 text-[13px] text-[#aaaaaa] font-medium flex flex-wrap gap-x-2 leading-relaxed">

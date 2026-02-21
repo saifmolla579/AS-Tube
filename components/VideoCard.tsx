@@ -52,17 +52,17 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick, isAdmin, onDelete
       <div className="flex mt-3 space-x-3">
         <div className="flex-shrink-0">
           <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-red-600 to-indigo-600 flex items-center justify-center text-[10px] font-bold text-white shadow-md">
-            AS
+            TS
           </div>
         </div>
         <div className="flex flex-col">
-          <h3 className="text-[15px] font-semibold line-clamp-2 leading-tight mb-1 text-white group-hover:text-blue-400 transition-colors">
+          <h3 className="text-[14px] font-semibold line-clamp-2 leading-tight mb-1 text-white group-hover:text-blue-400 transition-colors">
             {video.title}
           </h3>
-          <div className="text-[13px] text-gray-400">
+          <div className="text-[12px] text-gray-400">
             <p className="hover:text-white transition-colors flex items-center">
               {video.creator}
-              <i className="fas fa-check-circle text-[10px] ml-1 text-gray-500"></i>
+              <i className="fas fa-check-circle text-[9px] ml-1 text-gray-500"></i>
             </p>
             <p>{video.views} views • {video.uploadedAt}</p>
           </div>

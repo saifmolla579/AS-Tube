@@ -9,10 +9,10 @@ export const INITIAL_VIDEOS: Video[] = [
     thumbnail: 'https://picsum.photos/seed/nature1/640/360',
     url: 'https://www.w3schools.com/html/mov_bbb.mp4',
     views: '1.2M',
+    likes: 1240,
     duration: '10:05',
     uploadedAt: '2 days ago',
-    category: 'Nature',
-    creator: 'AS-Tube Admin'
+    creator: 'TR SAIF'
   },
   {
     id: '2',
@@ -21,10 +21,10 @@ export const INITIAL_VIDEOS: Video[] = [
     thumbnail: 'https://picsum.photos/seed/coding/640/360',
     url: 'https://www.w3schools.com/html/movie.mp4',
     views: '850K',
+    likes: 950,
     duration: '15:20',
     uploadedAt: '1 week ago',
-    category: 'Education',
-    creator: 'AS-Tube Admin'
+    creator: 'TR SAIF'
   },
   {
     id: '3',
@@ -33,11 +33,9 @@ export const INITIAL_VIDEOS: Video[] = [
     thumbnail: 'https://picsum.photos/seed/food/640/360',
     url: 'https://www.w3schools.com/html/mov_bbb.mp4',
     views: '2.5M',
+    likes: 3200,
     duration: '08:45',
     uploadedAt: '3 days ago',
-    category: 'Food',
-    creator: 'AS-Tube Admin'
+    creator: 'TR SAIF'
   }
 ];
-
-export const CATEGORIES = ['All', 'Nature', 'Education', 'Food', 'Music', 'Tech', 'Gaming', 'News'];

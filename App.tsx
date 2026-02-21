@@ -5,9 +5,10 @@ import VideoCard from './components/VideoCard';
 import UploadModal from './components/UploadModal';
 import PinModal from './components/PinModal';
 import { Video } from './types';
-import { INITIAL_VIDEOS, CATEGORIES } from './constants';
+import { INITIAL_VIDEOS } from './constants.tsx';
+import { supabase, isSupabaseConfigured } from './services/supabase';
 
-const ADMIN_PIN = "1234"; 
+const ADMIN_PIN = "72437700"; 
 
 const App: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>([]);
@@ -15,42 +16,88 @@ const App: React.FC = () => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
-  const [activeCategory, setActiveCategory] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeSection, setActiveSection] = useState('Home');
+  const [likedVideoIds, setLikedVideoIds] = useState<string[]>([]);
+  const [isSubscribed, setIsSubscribed] = useState(false);
 
-  // Load state from localStorage
+  // Load state from Supabase
   useEffect(() => {
-    try {
-      const savedVideos = localStorage.getItem('as_tube_videos');
-      if (savedVideos) {
-        setVideos(JSON.parse(savedVideos));
-      } else {
+    const fetchVideos = async () => {
+      if (!isSupabaseConfigured()) {
+        console.warn("Supabase not configured. Using initial videos.");
+        setVideos(INITIAL_VIDEOS);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('videos')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error("Supabase fetch error:", error);
+          setVideos(INITIAL_VIDEOS);
+        } else if (data && data.length > 0) {
+          setVideos(data);
+        } else {
+          setVideos(INITIAL_VIDEOS);
+        }
+      } catch (e) {
+        console.error("Failed to load state:", e);
         setVideos(INITIAL_VIDEOS);
       }
+    };
 
-      const adminSession = localStorage.getItem('as_tube_admin_session');
-      if (adminSession === 'true') {
-        setIsAdmin(true);
+    fetchVideos();
+
+    // Set up real-time subscription
+    let channel: any = null;
+    if (isSupabaseConfigured()) {
+      channel = supabase
+        .channel('schema-db-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'videos'
+          },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              setVideos(prev => [payload.new as Video, ...prev]);
+            } else if (payload.eventType === 'DELETE') {
+              setVideos(prev => prev.filter(v => v.id !== payload.old.id));
+            } else if (payload.eventType === 'UPDATE') {
+              setVideos(prev => prev.map(v => v.id === payload.new.id ? (payload.new as Video) : v));
+            }
+          }
+        )
+        .subscribe();
+    }
+
+    const savedLikes = localStorage.getItem('as_tube_liked_videos');
+    if (savedLikes) {
+      setLikedVideoIds(JSON.parse(savedLikes));
+    }
+
+    const savedSub = localStorage.getItem('as_tube_is_subscribed');
+    if (savedSub === 'true') {
+      setIsSubscribed(true);
+    }
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
       }
-    } catch (e) {
-      console.error("Failed to load state:", e);
-      setVideos(INITIAL_VIDEOS);
-    }
+    };
   }, []);
-
-  // Save videos to localStorage
-  useEffect(() => {
-    if (videos.length > 0) {
-      localStorage.setItem('as_tube_videos', JSON.stringify(videos));
-    }
-  }, [videos]);
 
   const handleAdminToggleRequest = useCallback(() => {
     if (isAdmin) {
-      if (window.confirm("Are you sure you want to log out?")) {
-        setIsAdmin(false);
-        localStorage.removeItem('as_tube_admin_session');
-      }
+      setIsAdmin(false);
+      alert("Admin Panel Closed.");
     } else {
       setIsPinModalOpen(true);
     }
@@ -59,9 +106,8 @@ const App: React.FC = () => {
   const handlePinVerify = useCallback((pin: string) => {
     if (pin.trim() === ADMIN_PIN) {
       setIsAdmin(true);
-      localStorage.setItem('as_tube_admin_session', 'true');
       setIsPinModalOpen(false);
-      alert("Welcome, AS-Tube Creator!");
+      alert("Welcome, TR SAIF!");
     } else {
       alert("Invalid PIN code.");
     }
@@ -69,44 +115,177 @@ const App: React.FC = () => {
 
   const filteredVideos = useMemo(() => {
     return videos.filter(v => {
-      const matchesCategory = activeCategory === 'All' || v.category === activeCategory;
       const matchesSearch = v.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           v.description.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesCategory && matchesSearch;
-    });
-  }, [videos, activeCategory, searchTerm]);
+      
+      if (activeSection === 'Liked Videos') {
+        return matchesSearch && likedVideoIds.includes(v.id);
+      }
 
-  const handleUpload = (newVideoData: Omit<Video, 'id' | 'views' | 'uploadedAt'>) => {
+      if (activeSection === 'Subscriptions') {
+        return matchesSearch && isSubscribed;
+      }
+      
+      return matchesSearch;
+    });
+  }, [videos, searchTerm, activeSection, likedVideoIds]);
+
+  const handleUpload = async (newVideoData: Omit<Video, 'id' | 'views' | 'uploadedAt'>) => {
     const newVideo: Video = {
       ...newVideoData,
       id: Math.random().toString(36).substring(7),
       views: '0',
-      uploadedAt: 'Just now'
+      uploadedAt: new Date().toLocaleDateString()
     };
-    setVideos([newVideo, ...videos]);
+    
+    if (!isSupabaseConfigured()) {
+      alert("Supabase is not configured. Video will only be saved locally for this session.");
+      setVideos([newVideo, ...videos]);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('videos').insert([newVideo]);
+      if (error) throw error;
+      // Real-time subscription will handle the UI update
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Failed to upload to Supabase. Make sure the 'videos' table exists.");
+      // Fallback for demo
+      setVideos([newVideo, ...videos]);
+    }
   };
 
-  const handleVideoClick = (id: string) => {
+  const handleLike = async (id: string) => {
+    const isLiked = likedVideoIds.includes(id);
+    const newLikedIds = isLiked 
+      ? likedVideoIds.filter(vid => vid !== id)
+      : [...likedVideoIds, id];
+    
+    setLikedVideoIds(newLikedIds);
+    localStorage.setItem('as_tube_liked_videos', JSON.stringify(newLikedIds));
+
+    // Update video likes count
+    const video = videos.find(v => v.id === id);
+    if (video) {
+      const newLikes = isLiked ? Math.max(0, video.likes - 1) : video.likes + 1;
+      
+      if (isSupabaseConfigured()) {
+        try {
+          await supabase
+            .from('videos')
+            .update({ likes: newLikes })
+            .eq('id', id);
+        } catch (error) {
+          console.error("Like update error:", error);
+        }
+      } else {
+        setVideos(prev => prev.map(v => v.id === id ? { ...v, likes: newLikes } : v));
+      }
+      
+      // Update selected video state if open
+      if (selectedVideo && selectedVideo.id === id) {
+        setSelectedVideo({ ...selectedVideo, likes: newLikes });
+      }
+    }
+  };
+
+  const handleSubscribe = () => {
+    const newSubState = !isSubscribed;
+    setIsSubscribed(newSubState);
+    localStorage.setItem('as_tube_is_subscribed', newSubState ? 'true' : 'false');
+    if (newSubState) {
+      alert("Subscribed to TR SAIF!");
+    }
+  };
+
+  const handleVideoClick = async (id: string) => {
     const video = videos.find(v => v.id === id);
     if (video) {
       setSelectedVideo(video);
-      // Increment views (simulated)
-      setVideos(prev => prev.map(v => {
-        if (v.id === id) {
-          const currentViews = parseInt(v.views.replace(/[^0-9]/g, '')) || 0;
-          const suffix = v.views.replace(/[0-9]/g, '') || '';
-          return { ...v, views: (currentViews + 1) + suffix };
+      
+      // Increment views (simulated local update first)
+      const currentViews = parseInt(video.views.replace(/[^0-9]/g, '')) || 0;
+      const suffix = video.views.replace(/[0-9]/g, '') || '';
+      const newViews = (currentViews + 1) + suffix;
+
+      if (isSupabaseConfigured()) {
+        try {
+          await supabase
+            .from('videos')
+            .update({ views: newViews })
+            .eq('id', id);
+        } catch (error) {
+          console.error("View increment error:", error);
         }
-        return v;
-      }));
+      } else {
+        setVideos(prev => prev.map(v => v.id === id ? { ...v, views: newViews } : v));
+      }
     }
   };
 
-  const handleDeleteVideo = (id: string, e: React.MouseEvent) => {
+  const handleDeleteVideo = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm("Are you sure you want to delete this video?")) {
-      setVideos(prev => prev.filter(v => v.id !== id));
+      if (!isSupabaseConfigured()) {
+        setVideos(prev => prev.filter(v => v.id !== id));
+        return;
+      }
+
+      try {
+        const { error } = await supabase.from('videos').delete().eq('id', id);
+        if (error) throw error;
+      } catch (error) {
+        console.error("Delete error:", error);
+        alert("Failed to delete from Supabase.");
+        setVideos(prev => prev.filter(v => v.id !== id));
+      }
     }
+  };
+
+  const handleShare = (video: Video) => {
+    const shareUrl = video.isYoutube 
+      ? `https://www.youtube.com/watch?v=${video.url}` 
+      : video.url;
+    
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        alert("Link copied to clipboard!");
+      }).catch(err => {
+        console.error("Failed to copy:", err);
+        fallbackCopyTextToClipboard(shareUrl);
+      });
+    } else {
+      fallbackCopyTextToClipboard(shareUrl);
+    }
+  };
+
+  const fallbackCopyTextToClipboard = (text: string) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    
+    // Avoid scrolling to bottom
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        alert("Link copied to clipboard!");
+      } else {
+        alert("Unable to copy link. Please copy it manually: " + text);
+      }
+    } catch (err) {
+      console.error('Fallback: Oops, unable to copy', err);
+      alert("Unable to copy link. Please copy it manually: " + text);
+    }
+
+    document.body.removeChild(textArea);
   };
 
   // Robust YouTube URL construction using No-Cookie domain to fix Error 153
@@ -121,6 +300,8 @@ const App: React.FC = () => {
         isAdmin={isAdmin} 
         onAdminToggle={handleAdminToggleRequest}
         onSearch={(term) => setSearchTerm(term)}
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
       >
         <div className="md:hidden mb-6 mt-2">
           <div className="flex items-center bg-[#272727] rounded-full px-5 py-2.5 shadow-lg border border-[#333]">
@@ -135,21 +316,49 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex space-x-3 overflow-x-auto pb-4 mb-6 no-scrollbar sticky top-16 bg-[#0f0f0f] z-30 pt-2">
-          {CATEGORIES.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
-                activeCategory === cat ? 'bg-white text-black shadow-md scale-105' : 'bg-[#272727] hover:bg-[#3f3f3f] text-white border border-transparent'
-              }`}
+        {isAdmin && (
+          <div className="bg-red-600/10 border border-red-500/20 rounded-2xl p-4 mb-6 flex items-center justify-between backdrop-blur-sm">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center text-white shadow-lg">
+                <i className="fas fa-user-shield"></i>
+              </div>
+              <div>
+                <h3 className="text-white font-bold text-sm">Admin Mode Active</h3>
+                <div className="flex items-center space-x-2">
+                  <p className="text-xs text-gray-400">You can now upload and delete videos.</p>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/30 border border-white/10 flex items-center">
+                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isSupabaseConfigured() ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                    <span className="text-gray-300">{isSupabaseConfigured() ? 'Supabase Connected' : 'Local Mode'}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <button 
+              onClick={handleAdminToggleRequest}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2"
             >
-              {cat}
+              <i className="fas fa-sign-out-alt"></i>
+              <span>Close Admin Panel</span>
             </button>
-          ))}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-white flex items-center">
+            {activeSection === 'Home' ? 'Recommended' : activeSection}
+            {activeSection === 'Liked Videos' && <span className="ml-2 text-sm font-normal text-gray-400">({filteredVideos.length})</span>}
+          </h2>
+          {activeSection !== 'Home' && (
+            <button 
+              onClick={() => setActiveSection('Home')}
+              className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              Back to Home
+            </button>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-8">
           {filteredVideos.length > 0 ? (
             filteredVideos.map(video => (
               <VideoCard 
@@ -162,8 +371,12 @@ const App: React.FC = () => {
             ))
           ) : (
             <div className="col-span-full py-20 text-center text-gray-500">
-              <i className="fas fa-search text-4xl mb-4 opacity-20"></i>
-              <p>No videos found matching your search.</p>
+              <i className={`fas ${activeSection === 'Subscriptions' && !isSubscribed ? 'fa-user-plus' : 'fa-search'} text-4xl mb-4 opacity-20`}></i>
+              <p>
+                {activeSection === 'Subscriptions' && !isSubscribed 
+                  ? "Subscribe to TR SAIF to see videos here." 
+                  : "No videos found matching your search."}
+              </p>
             </div>
           )}
         </div>
@@ -221,21 +434,41 @@ const App: React.FC = () => {
               
               <div className="flex flex-col md:flex-row md:items-center justify-between py-4 border-b border-[#303030] gap-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-red-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg border border-white/10">AS</div>
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-red-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg border border-white/10">TS</div>
                   <div>
                     <h4 className="font-bold text-white flex items-center">
                       {selectedVideo.creator}
                       <i className="fas fa-check-circle text-blue-500 text-[10px] ml-2"></i>
                     </h4>
-                    <p className="text-xs text-gray-400">Official AS-Tube Creator</p>
+                    <p className="text-xs text-gray-400">Official Creator</p>
                   </div>
-                  <button className="bg-white text-black px-4 py-2 rounded-full text-sm font-bold ml-4 hover:bg-gray-200 transition-colors">Subscribe</button>
+                  <button 
+                    onClick={handleSubscribe}
+                    className={`px-4 py-2 rounded-full text-sm font-bold ml-4 transition-all ${
+                      isSubscribed 
+                        ? 'bg-[#272727] text-gray-400 hover:bg-[#3f3f3f]' 
+                        : 'bg-white text-black hover:bg-gray-200'
+                    }`}
+                  >
+                    {isSubscribed ? 'Subscribed' : 'Subscribe'}
+                  </button>
                 </div>
                 <div className="flex items-center space-x-2">
-                   <button className="bg-[#272727] hover:bg-[#3f3f3f] px-4 py-2 rounded-full text-sm font-medium flex items-center space-x-2 transition-colors">
-                     <i className="fas fa-thumbs-up"></i> <span>Like</span>
+                   <button 
+                     onClick={() => handleLike(selectedVideo.id)}
+                     className={`px-4 py-2 rounded-full text-sm font-medium flex items-center space-x-2 transition-colors ${
+                       likedVideoIds.includes(selectedVideo.id)
+                         ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                         : 'bg-[#272727] hover:bg-[#3f3f3f] text-white'
+                     }`}
+                   >
+                     <i className={`fas fa-thumbs-up ${likedVideoIds.includes(selectedVideo.id) ? 'text-blue-400' : ''}`}></i> 
+                     <span>{selectedVideo.likes.toLocaleString()}</span>
                    </button>
-                   <button className="bg-[#272727] hover:bg-[#3f3f3f] px-4 py-2 rounded-full text-sm font-medium flex items-center space-x-2 transition-colors">
+                   <button 
+                     onClick={() => handleShare(selectedVideo)}
+                     className="bg-[#272727] hover:bg-[#3f3f3f] px-4 py-2 rounded-full text-sm font-medium flex items-center space-x-2 transition-colors text-white"
+                   >
                      <i className="fas fa-share"></i> <span>Share</span>
                    </button>
                 </div>
@@ -248,6 +481,46 @@ const App: React.FC = () => {
                 <p className="whitespace-pre-wrap text-gray-300 leading-relaxed max-w-none">
                   {selectedVideo.description}
                 </p>
+              </div>
+
+              {/* Recommended Videos Section */}
+              <div className="mt-8 mb-12">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center">
+                  <i className="fas fa-play-circle text-red-500 mr-2"></i>
+                  Recommended Videos
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {videos
+                    .filter(v => v.id !== selectedVideo.id)
+                    .slice(0, 6)
+                    .map(video => (
+                      <div 
+                        key={video.id}
+                        onClick={() => handleVideoClick(video.id)}
+                        className="flex flex-col bg-[#1a1a1a] rounded-xl overflow-hidden cursor-pointer hover:bg-[#2a2a2a] transition-all border border-white/5 group"
+                      >
+                        <div className="aspect-video relative overflow-hidden">
+                          <img 
+                            src={video.thumbnail} 
+                            alt={video.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">
+                            {video.duration}
+                          </div>
+                        </div>
+                        <div className="p-3">
+                          <h4 className="text-white text-sm font-bold line-clamp-2 mb-1 group-hover:text-blue-400 transition-colors">
+                            {video.title}
+                          </h4>
+                          <div className="text-[11px] text-gray-400">
+                            {video.creator} • {video.views} views
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
               </div>
             </div>
           </div>

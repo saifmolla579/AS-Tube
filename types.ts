@@ -6,9 +6,9 @@ export interface Video {
   thumbnail: string;
   url: string;
   views: string;
+  likes: number;
   duration: string;
   uploadedAt: string;
-  category: string;
   creator: string;
   isYoutube?: boolean;
 }

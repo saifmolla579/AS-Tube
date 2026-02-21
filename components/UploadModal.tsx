@@ -16,7 +16,6 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('All');
   const [isPublishing, setIsPublishing] = useState(false);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -131,8 +130,8 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
       url: finalUrl,
       thumbnail: finalThumbnail,
       duration: uploadType === 'youtube' ? 'YT' : '5:00',
-      category,
-      creator: 'AS-Tube Admin',
+      likes: 0,
+      creator: 'TR SAIF',
       isYoutube
     });
     
@@ -336,16 +335,6 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
                 className="w-full bg-[#121212] border border-[#333] rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none resize-none text-white disabled:opacity-50 transition-all"
                 value={description} onChange={(e) => setDescription(e.target.value)}
               />
-
-              <select 
-                disabled={isPublishing}
-                className="w-full bg-[#121212] border border-[#333] rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none text-white appearance-none disabled:opacity-50"
-                value={category} onChange={(e) => setCategory(e.target.value)}
-              >
-                {['All', 'Nature', 'Education', 'Food', 'Tech', 'Gaming', 'Music'].map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
             </div>
 
             <button 
