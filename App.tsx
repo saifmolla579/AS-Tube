@@ -227,18 +227,21 @@ const App: React.FC = () => {
   const handleDeleteVideo = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm("Are you sure you want to delete this video?")) {
-      if (!isSupabaseConfigured()) {
-        setVideos(prev => prev.filter(v => v.id !== id));
-        return;
-      }
+      // Update local state immediately for better responsiveness
+      setVideos(prev => prev.filter(v => v.id !== id));
 
-      try {
-        const { error } = await supabase.from('videos').delete().eq('id', id);
-        if (error) throw error;
-      } catch (error) {
-        console.error("Delete error:", error);
-        alert("Failed to delete from Supabase.");
-        setVideos(prev => prev.filter(v => v.id !== id));
+      if (isSupabaseConfigured()) {
+        try {
+          const { error } = await supabase.from('videos').delete().eq('id', id);
+          if (error) {
+            console.error("Supabase delete error:", error);
+            alert("Failed to delete from database. Please try again.");
+            // Optionally re-fetch videos here if needed
+          }
+        } catch (error) {
+          console.error("Delete error:", error);
+          alert("An error occurred while deleting.");
+        }
       }
     }
   };
