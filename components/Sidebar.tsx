@@ -1,5 +1,6 @@
 
 import React from 'react';
+import AdsterraAd from './AdsterraAd';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -58,8 +59,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, onSectionChang
         <a href="#" className="hover:text-white">Copyright</a>
         <a href="#" className="hover:text-white">Contact us</a>
       </div>
-      <div className="px-6 py-1 text-[12px] text-[#717171]">
+      <div className="px-6 py-1 text-[12px] text-[#717171] mb-4">
         © 2024 AS-Tube LLC
+      </div>
+
+      {/* Adsterra Sidebar Ad Slot */}
+      <div className="px-4 mt-2">
+        <AdsterraAd 
+          id="adsterra_sidebar_id" 
+          width={200} 
+          height={200} 
+          className="bg-[#1a1a1a] rounded-xl border border-[#333]"
+        />
+        <p className="text-[10px] text-center text-gray-600 mt-1 uppercase tracking-widest">Advertisement</p>
       </div>
     </aside>
   );

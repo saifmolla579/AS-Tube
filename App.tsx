@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import VideoCard from './components/VideoCard';
 import UploadModal from './components/UploadModal';
 import PinModal from './components/PinModal';
+import AdsterraAd from './components/AdsterraAd';
 import { Video } from './types';
 import { INITIAL_VIDEOS } from './constants.tsx';
 import { supabase, isSupabaseConfigured } from './services/supabase';
@@ -444,6 +445,15 @@ const App: React.FC = () => {
                         <>Follow these steps to ensure your videos are saved permanently in Supabase.</>
                       )}
                     </p>
+                    <div className="bg-blue-900/20 rounded-xl p-4 mb-4 border border-blue-500/30">
+                      <p className="text-xs font-bold mb-2 text-blue-400 uppercase tracking-widest flex items-center">
+                        <i className="fas fa-ad mr-2"></i>
+                        Adsterra Configuration:
+                      </p>
+                      <p className="text-[11px] text-gray-300 mb-2">
+                        To show your ads, search for <code className="bg-black/40 px-1 rounded text-yellow-400">adsterra_sidebar_id</code>, <code className="bg-black/40 px-1 rounded text-yellow-400">adsterra_main_banner_id</code>, and <code className="bg-black/40 px-1 rounded text-yellow-400">adsterra_player_id</code> in <code className="bg-black/40 px-1 rounded">App.tsx</code> and <code className="bg-black/40 px-1 rounded">Sidebar.tsx</code>, then replace them with your actual Adsterra Unit Keys.
+                      </p>
+                    </div>
                     <div className="bg-black/40 rounded-xl p-4 mb-4 border border-red-500/30">
                       <p className="text-xs font-bold mb-2 text-red-400 uppercase tracking-widest flex items-center">
                         <i className="fas fa-exclamation-triangle mr-2"></i>
@@ -519,6 +529,17 @@ alter publication supabase_realtime add table videos;`}
           )}
         </div>
 
+        {/* Adsterra Main Banner Ad Slot */}
+        <div className="mb-8">
+          <AdsterraAd 
+            id="adsterra_main_banner_id" 
+            width={728} 
+            height={90} 
+            className="bg-[#1a1a1a] rounded-2xl border border-[#333] shadow-lg"
+          />
+          <p className="text-[10px] text-center text-gray-600 mt-1 uppercase tracking-widest">Sponsored Content</p>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-8">
           {filteredVideos.length > 0 ? (
             filteredVideos.map(video => (
@@ -565,6 +586,12 @@ alter publication supabase_realtime add table videos;`}
         onVerify={handlePinVerify} 
       />
 
+      {/* Adsterra Social Bar Ad Slot */}
+      <AdsterraAd 
+        id="adsterra_social_bar_id" 
+        format="social-bar" 
+      />
+
       {selectedVideo && (
         <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex flex-col md:flex-row p-0 md:p-6 overflow-y-auto animate-in fade-in zoom-in duration-300">
           <button 
@@ -597,6 +624,16 @@ alter publication supabase_realtime add table videos;`}
               ) : (
                 <video src={selectedVideo.url} className="w-full h-full" controls autoPlay />
               )}
+            </div>
+
+            {/* Adsterra Player Ad Slot */}
+            <div className="mb-6 px-4 md:px-0">
+              <AdsterraAd 
+                id="adsterra_player_id" 
+                width={468} 
+                height={60} 
+                className="bg-[#1a1a1a] rounded-xl border border-[#333]"
+              />
             </div>
             
             <div className="p-4 md:p-0">
