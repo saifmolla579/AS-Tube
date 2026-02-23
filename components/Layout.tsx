@@ -20,7 +20,7 @@ const Layout: React.FC<LayoutProps> = ({
   activeSection,
   onSectionChange
 }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
     <div className="flex flex-col min-h-screen">

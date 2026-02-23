@@ -7,15 +7,18 @@ interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpload: (video: Omit<Video, 'id' | 'views' | 'uploadedAt'>) => void;
+  editingVideo?: Video | null;
+  onUpdate?: (video: Video) => void;
 }
 
-const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) => {
+const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload, editingVideo, onUpdate }) => {
   const [uploadType, setUploadType] = useState<'file' | 'youtube'>('youtube');
   const [ytUrl, setYtUrl] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [duration, setDuration] = useState('');
   const [customThumbnail, setCustomThumbnail] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isFetchingMetadata, setIsFetchingMetadata] = useState(false);
@@ -23,6 +26,24 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
   
   // Ref to track if the current fetch should be ignored (canceled)
   const isCanceledRef = useRef(false);
+
+  useEffect(() => {
+    if (editingVideo) {
+      setTitle(editingVideo.title);
+      setDescription(editingVideo.description);
+      setDuration(editingVideo.duration);
+      setCustomThumbnail(editingVideo.thumbnail);
+      setYtUrl(editingVideo.isYoutube || editingVideo.isGoogleDrive ? editingVideo.url : '');
+      setUploadType(editingVideo.isYoutube || editingVideo.isGoogleDrive ? 'youtube' : 'file');
+    } else {
+      setTitle('');
+      setDescription('');
+      setDuration('');
+      setCustomThumbnail(null);
+      setYtUrl('');
+      setUploadType('youtube');
+    }
+  }, [editingVideo, isOpen]);
 
   const extractVideoId = (url: string) => {
     // YouTube
@@ -71,6 +92,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
       if (!isCanceledRef.current) {
         if (metadata.title) setTitle(metadata.title);
         if (metadata.description) setDescription(metadata.description);
+        if (metadata.duration) setDuration(metadata.duration);
       }
     } catch (error) {
       console.error("Failed to fetch metadata", error);
@@ -90,7 +112,20 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      setVideoPreview(URL.createObjectURL(selectedFile));
+      const url = URL.createObjectURL(selectedFile);
+      setVideoPreview(url);
+      
+      // Extract duration from video file
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        const mins = Math.floor(video.duration / 60);
+        const secs = Math.floor(video.duration % 60);
+        setDuration(`${mins}:${secs.toString().padStart(2, '0')}`);
+      };
+      video.src = url;
+
       // Set title to filename if title is currently empty
       if (!title) setTitle(selectedFile.name.replace(/\.[^/.]+$/, ""));
     }
@@ -127,12 +162,12 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
         isGoogleDrive = true;
       }
     } else {
-      if (!file) {
+      if (!file && !editingVideo) {
         alert("Please select a file");
         return;
       }
-      finalUrl = videoPreview || '';
-      finalThumbnail = customThumbnail || `https://picsum.photos/seed/${Math.random()}/640/360`;
+      finalUrl = file ? (videoPreview || '') : (editingVideo?.url || '');
+      finalThumbnail = customThumbnail || (editingVideo?.thumbnail || `https://picsum.photos/seed/${Math.random()}/640/360`);
     }
 
     setIsPublishing(true);
@@ -151,17 +186,30 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
       await new Promise(resolve => setTimeout(resolve, 1500));
     }
 
-    onUpload({
-      title: title || 'Untitled Video',
-      description,
-      url: finalUrl,
-      thumbnail: finalThumbnail,
-      duration: uploadType === 'youtube' ? (isYoutube ? 'YT' : 'GD') : '5:00',
-      likes: 0,
-      creator: 'TR SAIF',
-      isYoutube,
-      isGoogleDrive
-    });
+    if (editingVideo && onUpdate) {
+      onUpdate({
+        ...editingVideo,
+        title: title || 'Untitled Video',
+        description,
+        url: finalUrl,
+        thumbnail: finalThumbnail,
+        duration: duration || editingVideo.duration,
+        isYoutube,
+        isGoogleDrive
+      });
+    } else {
+      onUpload({
+        title: title || 'Untitled Video',
+        description,
+        url: finalUrl,
+        thumbnail: finalThumbnail,
+        duration: duration || (uploadType === 'youtube' ? '' : '5:00'),
+        likes: 0,
+        creator: 'Alisword',
+        isYoutube,
+        isGoogleDrive
+      });
+    }
     
     setIsPublishing(false);
     setUploadProgress(0);
@@ -170,6 +218,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
     setYtUrl('');
     setTitle('');
     setDescription('');
+    setDuration('');
     setCustomThumbnail(null);
     onClose();
   };
@@ -182,7 +231,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/90 backdrop-blur-sm px-4">
       <div className="bg-[#1e1e1e] w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border border-[#303030] animate-in slide-in-from-bottom-4 duration-300">
         <div className="flex items-center justify-between p-4 border-b border-[#303030] sticky top-0 bg-[#1e1e1e] z-10">
-          <h2 className="text-xl font-bold">Add New Video</h2>
+          <h2 className="text-xl font-bold">{editingVideo ? 'Edit Video' : 'Add New Video'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-[#303030] rounded-full transition-colors">
             <i className="fas fa-times"></i>
           </button>
@@ -410,7 +459,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpload }) 
               disabled={isPublishing || isFetchingMetadata}
               className={`w-full py-4 rounded-xl font-bold mt-4 transition-all shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${uploadType === 'youtube' ? 'bg-red-600 hover:bg-red-700 shadow-red-900/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-900/20'}`}
             >
-              {isPublishing ? (uploadType === 'file' ? 'UPLOADING...' : 'PUBLISHING...') : 'PUBLISH TO AS-TUBE'}
+              {isPublishing ? (uploadType === 'file' ? 'UPLOADING...' : 'PUBLISHING...') : (editingVideo ? 'UPDATE VIDEO' : 'PUBLISH TO ALISWORD')}
             </button>
           </form>
         </div>

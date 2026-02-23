@@ -7,24 +7,57 @@ interface VideoCardProps {
   onClick: (id: string) => void;
   isAdmin?: boolean;
   onDelete?: (id: string, e: React.MouseEvent) => void;
+  onEdit?: (video: Video, e: React.MouseEvent) => void;
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ video, onClick, isAdmin, onDelete }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ video, onClick, isAdmin, onDelete, onEdit }) => {
   const [imgError, setImgError] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
   return (
     <div 
       className="flex flex-col cursor-pointer group relative"
       onClick={() => onClick(video.id)}
     >
-      {isAdmin && onDelete && (
-        <button 
-          onClick={(e) => onDelete(video.id, e)}
-          className="absolute top-2 left-2 z-10 bg-black/60 hover:bg-red-600 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-lg"
-          title="Delete Video"
-        >
-          <i className="fas fa-trash-alt text-xs"></i>
-        </button>
+      {isAdmin && (
+        <div className="absolute top-2 right-2 z-20">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMenu(!showMenu);
+            }}
+            className="bg-black/60 hover:bg-black/80 text-white w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-lg border border-white/10"
+          >
+            <i className="fas fa-ellipsis-v text-xs"></i>
+          </button>
+          
+          {showMenu && (
+            <div className="absolute right-0 mt-2 w-32 bg-[#1e1e1e] border border-[#333] rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMenu(false);
+                  if (onEdit) onEdit(video, e);
+                }}
+                className="w-full px-4 py-2.5 text-left text-xs font-bold text-gray-300 hover:bg-[#272727] hover:text-white flex items-center space-x-2 transition-colors"
+              >
+                <i className="fas fa-edit text-blue-400"></i>
+                <span>Edit Video</span>
+              </button>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMenu(false);
+                  if (onDelete) onDelete(video.id, e);
+                }}
+                className="w-full px-4 py-2.5 text-left text-xs font-bold text-red-400 hover:bg-red-600/10 flex items-center space-x-2 transition-colors"
+              >
+                <i className="fas fa-trash-alt"></i>
+                <span>Delete</span>
+              </button>
+            </div>
+          )}
+        </div>
       )}
       <div className="relative aspect-video rounded-xl overflow-hidden bg-[#272727] shadow-lg border border-white/5">
         {imgError ? (
@@ -36,28 +69,19 @@ const VideoCard: React.FC<VideoCardProps> = ({ video, onClick, isAdmin, onDelete
             src={video.thumbnail} 
             alt={video.title}
             onError={() => setImgError(true)}
+            referrerPolicy="no-referrer"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         )}
-        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[12px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm">
+        <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[12px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm z-10">
           {video.duration}
         </div>
-        {video.isYoutube && (
-          <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-sm shadow-lg">
-            YT
-          </div>
-        )}
-        {video.isGoogleDrive && (
-          <div className="absolute top-2 right-2 bg-blue-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-sm shadow-lg">
-            GD
-          </div>
-        )}
       </div>
       
       <div className="flex mt-3 space-x-3">
         <div className="flex-shrink-0">
           <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-red-600 to-indigo-600 flex items-center justify-center text-[10px] font-bold text-white shadow-md">
-            TS
+            AS
           </div>
         </div>
         <div className="flex flex-col">

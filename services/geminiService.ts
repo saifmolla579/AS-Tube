@@ -23,9 +23,13 @@ export const generateVideoMetadata = async (prompt: string, isUrl: boolean = fal
           type: Type.OBJECT,
           properties: {
             title: { type: Type.STRING },
-            description: { type: Type.STRING }
+            description: { type: Type.STRING },
+            duration: { 
+              type: Type.STRING, 
+              description: "The duration of the video in format M:SS or H:MM:SS. If unknown, estimate based on title or context." 
+            }
           },
-          required: ["title", "description"]
+          required: ["title", "description", "duration"]
         }
       }
     });
@@ -36,7 +40,8 @@ export const generateVideoMetadata = async (prompt: string, isUrl: boolean = fal
     console.error("Gemini Error:", error);
     return {
       title: isUrl ? "Auto-detected Video" : prompt,
-      description: isUrl ? "Metadata could not be fetched automatically." : "Auto-generated content for " + prompt
+      description: isUrl ? "Metadata could not be fetched automatically." : "Auto-generated content for " + prompt,
+      duration: "5:00"
     };
   }
 };

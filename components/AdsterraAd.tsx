@@ -19,8 +19,7 @@ const AdsterraAd: React.FC<AdsterraAdProps> = ({ id, format = 'banner', width = 
     if (format === 'popunder') {
       const script = document.createElement('script');
       script.type = 'text/javascript';
-      script.src = `//pl25838421.highperformanceformat.com/47/84/70/478470.js`; // Example path, usually provided by Adsterra
-      // For popunder, we often just need to inject the script once
+      script.src = `//pl25838421.highperformanceformat.com/${id}/invoke.js`;
       document.body.appendChild(script);
       return;
     }
@@ -45,7 +44,7 @@ const AdsterraAd: React.FC<AdsterraAdProps> = ({ id, format = 'banner', width = 
       
       const script2 = document.createElement('script');
       script2.type = 'text/javascript';
-      script2.src = `//www.highperformanceformat.com/${id}/invoke.js`;
+      script2.src = `//www.highperformanceformat.com/invoke.js`;
       
       adRef.current.appendChild(script1);
       adRef.current.appendChild(script2);

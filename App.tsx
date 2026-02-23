@@ -15,6 +15,7 @@ const App: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -139,6 +140,25 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Handle browser back button to close video player
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (selectedVideo) {
+        setSelectedVideo(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [selectedVideo]);
+
+  // Push state when video opens
+  useEffect(() => {
+    if (selectedVideo) {
+      window.history.pushState({ videoId: selectedVideo.id }, '');
+    }
+  }, [selectedVideo]);
+
   const handleAdminToggleRequest = useCallback(() => {
     if (isAdmin) {
       setIsAdmin(false);
@@ -186,7 +206,7 @@ const App: React.FC = () => {
       views: '0',
       likes: 0,
       uploadedAt: now.toLocaleDateString(),
-      creator: 'TR SAIF'
+      creator: 'Alisword'
     };
     
     // For Supabase insert, we might need to add created_at explicitly if we want
@@ -261,7 +281,7 @@ const App: React.FC = () => {
     setIsSubscribed(newSubState);
     localStorage.setItem('as_tube_is_subscribed', newSubState ? 'true' : 'false');
     if (newSubState) {
-      alert("Subscribed to TR SAIF!");
+      alert("Subscribed to Alisword!");
     }
   };
 
@@ -360,6 +380,46 @@ const App: React.FC = () => {
     document.body.removeChild(textArea);
   };
 
+  const handleUpdateVideo = async (updatedVideo: Video) => {
+    if (!isSupabaseConfigured()) return;
+
+    try {
+      const { error } = await supabase
+        .from('videos')
+        .update({
+          title: updatedVideo.title,
+          description: updatedVideo.description,
+          thumbnail: updatedVideo.thumbnail,
+          duration: updatedVideo.duration,
+          url: updatedVideo.url,
+          isYoutube: updatedVideo.isYoutube,
+          isGoogleDrive: updatedVideo.isGoogleDrive
+        })
+        .eq('id', updatedVideo.id);
+
+      if (error) {
+        console.error("Update error:", error);
+        alert("Failed to update video: " + error.message);
+      } else {
+        setVideos(prev => prev.map(v => v.id === updatedVideo.id ? updatedVideo : v));
+        if (selectedVideo?.id === updatedVideo.id) {
+          setSelectedVideo(updatedVideo);
+        }
+        setEditingVideo(null);
+        setIsUploadModalOpen(false);
+      }
+    } catch (e: any) {
+      console.error("Update failed:", e);
+      alert("Update failed: " + e.message);
+    }
+  };
+
+  const handleEditRequest = (video: Video, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingVideo(video);
+    setIsUploadModalOpen(true);
+  };
+
   // Robust YouTube URL construction using No-Cookie domain to fix Error 153
   const getYoutubeEmbedUrl = (videoId: string) => {
     // Using youtube-nocookie.com is often more reliable in sandboxed environments
@@ -452,6 +512,7 @@ const App: React.FC = () => {
                 onClick={handleVideoClick} 
                 isAdmin={isAdmin}
                 onDelete={handleDeleteVideo}
+                onEdit={handleEditRequest}
               />
             ))
           ) : (
@@ -459,7 +520,7 @@ const App: React.FC = () => {
               <i className={`fas ${activeSection === 'Subscriptions' && !isSubscribed ? 'fa-user-plus' : 'fa-search'} text-4xl mb-4 opacity-20`}></i>
               <p>
                 {activeSection === 'Subscriptions' && !isSubscribed 
-                  ? "Subscribe to TR SAIF to see videos here." 
+                  ? "Subscribe to Alisword to see videos here." 
                   : "No videos found matching your search."}
               </p>
             </div>
@@ -479,8 +540,13 @@ const App: React.FC = () => {
 
       <UploadModal 
         isOpen={isUploadModalOpen} 
-        onClose={() => setIsUploadModalOpen(false)} 
-        onUpload={handleUpload} 
+        onClose={() => {
+          setIsUploadModalOpen(false);
+          setEditingVideo(null);
+        }} 
+        onUpload={handleUpload}
+        editingVideo={editingVideo}
+        onUpdate={handleUpdateVideo}
       />
       
       <PinModal 
@@ -500,15 +566,8 @@ const App: React.FC = () => {
 
       {selectedVideo && (
         <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex flex-col md:flex-row p-0 md:p-6 overflow-y-auto animate-in fade-in zoom-in duration-300">
-          <button 
-            onClick={() => setSelectedVideo(null)}
-            className="fixed top-4 right-4 z-[210] bg-white/10 hover:bg-red-600 w-12 h-12 rounded-full flex items-center justify-center border border-white/10 transition-all group"
-          >
-            <i className="fas fa-times text-xl text-white group-hover:scale-110"></i>
-          </button>
-          
-          <div className="flex-1 lg:max-w-5xl mx-auto w-full pt-16 md:pt-0">
-            <div className="aspect-video bg-black w-full rounded-none md:rounded-2xl overflow-hidden mb-4 shadow-2xl border border-white/5 ring-1 ring-white/10">
+          <div className="flex-1 lg:max-w-5xl mx-auto w-full pt-4 md:pt-0">
+            <div className="aspect-video bg-black w-full rounded-none md:rounded-2xl overflow-hidden mb-4 shadow-2xl border border-white/5 ring-1 ring-white/10 relative group">
               {selectedVideo.isYoutube ? (
                 <iframe 
                   title={selectedVideo.title}
@@ -540,13 +599,6 @@ const App: React.FC = () => {
                 height={60} 
                 className="bg-[#1a1a1a] rounded-xl border border-[#333]"
               />
-              <div className="mt-2">
-                <AdsterraAd 
-                  id="28678512" 
-                  format="smartlink" 
-                  label="Download Video" 
-                />
-              </div>
             </div>
             
             <div className="p-4 md:p-0">
@@ -554,13 +606,13 @@ const App: React.FC = () => {
               
               <div className="flex flex-col md:flex-row md:items-center justify-between py-4 border-b border-[#303030] gap-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-red-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg border border-white/10">TS</div>
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-red-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg border border-white/10">AS</div>
                   <div>
                     <h4 className="font-bold text-white flex items-center">
                       {selectedVideo.creator}
                       <i className="fas fa-check-circle text-blue-500 text-[10px] ml-2"></i>
                     </h4>
-                    <p className="text-xs text-gray-400">Official Creator</p>
+                    <p className="text-xs text-gray-400">Official Channel</p>
                   </div>
                   <button 
                     onClick={handleSubscribe}
@@ -591,6 +643,13 @@ const App: React.FC = () => {
                    >
                      <i className="fas fa-share"></i> <span>Share</span>
                    </button>
+                   <div className="bg-[#272727] hover:bg-[#3f3f3f] px-4 py-2 rounded-full text-sm font-medium transition-colors">
+                     <AdsterraAd 
+                       id="28678512" 
+                       format="smartlink" 
+                       label="Download" 
+                     />
+                   </div>
                 </div>
               </div>
               
