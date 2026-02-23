@@ -20,33 +20,77 @@ const App: React.FC = () => {
   const [activeSection, setActiveSection] = useState('Home');
   const [likedVideoIds, setLikedVideoIds] = useState<string[]>([]);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const [isDebugging, setIsDebugging] = useState(false);
+
+  const debugDatabase = async () => {
+    setIsDebugging(true);
+    try {
+      // Test 1: Check Connection
+      const { data: testData, error: testError } = await supabase.from('videos').select('count');
+      if (testError) throw new Error(`Fetch Test Failed: ${testError.message}`);
+
+      // Test 2: Try a dummy insert
+      const testId = 'test-' + Math.random().toString(36).substring(7);
+      const { error: insertError } = await supabase.from('videos').insert([{
+        id: testId,
+        title: 'Connection Test',
+        url: 'https://test.com',
+        thumbnail: 'https://test.com',
+        duration: '0:00'
+      }]);
+      
+      if (insertError) throw new Error(`Insert Test Failed: ${insertError.message}`);
+
+      // Test 3: Delete dummy
+      await supabase.from('videos').delete().eq('id', testId);
+
+      alert("✅ Database is working perfectly! If videos still disappear, check if you are using the correct Supabase URL and Anon Key.");
+      setDbError(null);
+    } catch (err: any) {
+      console.error("Debug Error:", err);
+      setDbError(err.message);
+      alert(`❌ Database Error: ${err.message}`);
+    } finally {
+      setIsDebugging(false);
+    }
+  };
 
   // Load state from Supabase
   useEffect(() => {
     const fetchVideos = async () => {
       if (!isSupabaseConfigured()) {
-        console.warn("Supabase not configured. Using initial videos.");
-        setVideos(INITIAL_VIDEOS);
+        setDbError("Supabase credentials missing. Check .env or supabase.ts");
+        setVideos([]);
         return;
       }
 
       try {
         const { data, error } = await supabase
           .from('videos')
-          .select('*')
-          .order('created_at', { ascending: false });
+          .select('*');
 
         if (error) {
           console.error("Supabase fetch error:", error);
-          setVideos(INITIAL_VIDEOS);
-        } else if (data && data.length > 0) {
-          setVideos(data);
-        } else {
-          setVideos(INITIAL_VIDEOS);
+          setDbError(error.message);
+          if (error.code === '42P01') {
+            setDbError("Table 'videos' does not exist. Please create it in Supabase.");
+          }
+          setVideos([]);
+        } else if (data) {
+          setDbError(null);
+          const sortedData = [...data].sort((a: any, b: any) => {
+            const dateA = new Date(a.created_at || a.uploadedAt || 0).getTime();
+            const dateB = new Date(b.created_at || b.uploadedAt || 0).getTime();
+            return dateB - dateA;
+          });
+          setVideos(sortedData);
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("Failed to load state:", e);
-        setVideos(INITIAL_VIDEOS);
+        setDbError(e.message || "Unknown connection error");
+        setVideos([]);
       }
     };
 
@@ -131,27 +175,48 @@ const App: React.FC = () => {
   }, [videos, searchTerm, activeSection, likedVideoIds]);
 
   const handleUpload = async (newVideoData: Omit<Video, 'id' | 'views' | 'uploadedAt'>) => {
+    const id = Math.random().toString(36).substring(7);
+    const now = new Date();
+    
+    // Create the video object exactly as the database expects
     const newVideo: Video = {
       ...newVideoData,
-      id: Math.random().toString(36).substring(7),
+      id,
       views: '0',
-      uploadedAt: new Date().toLocaleDateString()
+      likes: 0,
+      uploadedAt: now.toLocaleDateString(),
+      creator: 'TR SAIF'
+    };
+    
+    // For Supabase insert, we might need to add created_at explicitly if we want
+    const dbRecord = {
+      ...newVideo,
+      created_at: now.toISOString()
     };
     
     if (!isSupabaseConfigured()) {
-      alert("Supabase is not configured. Video will only be saved locally for this session.");
+      alert("Supabase is not configured. Video will only be saved locally.");
       setVideos([newVideo, ...videos]);
       return;
     }
 
+    if (dbError) {
+      if (!window.confirm(`Database error: "${dbError}". Upload might fail. Try anyway?`)) {
+        return;
+      }
+    }
+
     try {
-      const { error } = await supabase.from('videos').insert([newVideo]);
-      if (error) throw error;
-      // Real-time subscription will handle the UI update
-    } catch (error) {
+      const { error } = await supabase.from('videos').insert([dbRecord]);
+      if (error) {
+        console.error("Supabase insert error:", error);
+        throw error;
+      }
+      alert("✅ ভিডিওটি সফলভাবে ডাটাবেসে সেভ হয়েছে!");
+    } catch (error: any) {
       console.error("Upload error:", error);
-      alert("Failed to upload to Supabase. Make sure the 'videos' table exists.");
-      // Fallback for demo
+      alert(`❌ আপলোড ব্যর্থ হয়েছে: ${error.message}\n\nটিপস: এডমিন প্যানেলে দেওয়া SQL কোডটি সুপাবাসে রান করেছেন তো?`);
+      // Fallback for session
       setVideos([newVideo, ...videos]);
     }
   };
@@ -327,29 +392,115 @@ const App: React.FC = () => {
         </div>
 
         {isAdmin && (
-          <div className="bg-red-600/10 border border-red-500/20 rounded-2xl p-4 mb-6 flex items-center justify-between backdrop-blur-sm">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center text-white shadow-lg">
-                <i className="fas fa-user-shield"></i>
-              </div>
-              <div>
-                <h3 className="text-white font-bold text-sm">Admin Mode Active</h3>
-                <div className="flex items-center space-x-2">
-                  <p className="text-xs text-gray-400">You can now upload and delete videos.</p>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/30 border border-white/10 flex items-center">
-                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isSupabaseConfigured() ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
-                    <span className="text-gray-300">{isSupabaseConfigured() ? 'Supabase Connected' : 'Local Mode'}</span>
-                  </span>
+          <div className="space-y-4 mb-6">
+            <div className="bg-red-600/10 border border-red-500/20 rounded-2xl p-4 flex items-center justify-between backdrop-blur-sm">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center text-white shadow-lg">
+                  <i className="fas fa-user-shield"></i>
+                </div>
+                <div>
+                  <h3 className="text-white font-bold text-sm">Admin Mode Active</h3>
+                  <div className="flex items-center space-x-2">
+                    <p className="text-xs text-gray-400">You can now upload and delete videos.</p>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/30 border border-white/10 flex items-center">
+                      <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${dbError ? 'bg-yellow-500' : 'bg-green-500'}`}></span>
+                      <span className="text-gray-300">{dbError ? 'DB Error' : 'DB Connected'}</span>
+                    </span>
+                  </div>
                 </div>
               </div>
+              <div className="flex items-center space-x-3">
+                <button 
+                  onClick={() => setShowSetupGuide(!showSetupGuide)}
+                  className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border transition-all ${showSetupGuide ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10'}`}
+                >
+                  <i className="fas fa-book mr-1.5"></i>
+                  {showSetupGuide ? 'Hide Guide' : 'Setup Guide'}
+                </button>
+                <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${dbError ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/30' : 'bg-green-500/20 text-green-500 border border-green-500/30'}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${dbError ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
+                  <span>{dbError ? 'DB Error' : 'DB Connected'}</span>
+                </div>
+                <button 
+                  onClick={handleAdminToggleRequest}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2"
+                >
+                  <i className="fas fa-sign-out-alt"></i>
+                  <span>Close Admin Panel</span>
+                </button>
+              </div>
             </div>
-            <button 
-              onClick={handleAdminToggleRequest}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2"
-            >
-              <i className="fas fa-sign-out-alt"></i>
-              <span>Close Admin Panel</span>
-            </button>
+
+            {(dbError || showSetupGuide) && (
+              <div className={`${showSetupGuide && !dbError ? 'bg-blue-600/10 border-blue-500/20 text-blue-400' : 'bg-yellow-600/10 border-yellow-500/20 text-yellow-500'} border rounded-2xl p-6 backdrop-blur-sm transition-all animate-in fade-in slide-in-from-top-4 duration-300`}>
+                <div className="flex items-start space-x-4">
+                  <i className={`fas ${showSetupGuide && !dbError ? 'fa-info-circle' : 'fa-database'} text-2xl mt-1`}></i>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-lg mb-2 text-white">{showSetupGuide && !dbError ? 'Database Setup Guide' : 'Database Setup Required'}</h4>
+                    <p className="text-sm mb-4 opacity-80">
+                      {dbError ? (
+                        <>Your videos are disappearing because the Supabase database is not ready. Error: <span className="font-mono bg-black/30 px-2 py-0.5 rounded text-red-400">{dbError}</span></>
+                      ) : (
+                        <>Follow these steps to ensure your videos are saved permanently in Supabase.</>
+                      )}
+                    </p>
+                    <div className="bg-black/40 rounded-xl p-4 mb-4 border border-red-500/30">
+                      <p className="text-xs font-bold mb-2 text-red-400 uppercase tracking-widest flex items-center">
+                        <i className="fas fa-exclamation-triangle mr-2"></i>
+                        Run this to completely RESET and FIX the table:
+                      </p>
+                      <pre className="text-[10px] font-mono whitespace-pre-wrap break-all text-blue-300">
+{`-- ১. আগের টেবিলটি মুছে ফেলুন (যাতে নতুন কলামগুলো যোগ হয়)
+drop table if exists videos;
+
+-- ২. নতুন করে সঠিক কলামসহ টেবিল তৈরি করুন
+create table videos (
+  id text primary key,
+  title text not null,
+  description text,
+  url text not null,
+  thumbnail text,
+  duration text,
+  views text default '0',
+  likes integer default 0,
+  creator text default 'TR SAIF',
+  "isYoutube" boolean default false,
+  "isGoogleDrive" boolean default false,
+  "uploadedAt" text,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+-- ৩. সিকিউরিটি অফ করুন (যাতে ভিডিও রিলোড করলে না হারায়)
+alter table videos disable row level security;
+
+-- ৪. রিয়েল-টাইম আপডেট এনাবল করুন
+alter publication supabase_realtime add table videos;`}
+                      </pre>
+                    </div>
+                    <div className="flex flex-wrap gap-3 mt-4">
+                      <button 
+                        onClick={debugDatabase}
+                        disabled={isDebugging}
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-lg flex items-center"
+                      >
+                        <i className={`fas ${isDebugging ? 'fa-spinner fa-spin' : 'fa-vial'} mr-2`}></i>
+                        {isDebugging ? 'Testing...' : 'Test Connection'}
+                      </button>
+                      <button 
+                        onClick={() => window.location.reload()}
+                        className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-lg"
+                      >
+                        <i className="fas fa-sync-alt mr-2"></i>
+                        Refresh Page
+                      </button>
+                    </div>
+                    <p className="text-xs mt-4 opacity-60 italic">
+                      After running the SQL, refresh this page and try uploading again.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
