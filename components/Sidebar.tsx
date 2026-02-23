@@ -60,13 +60,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, activeSection, onSectionChang
         <a href="#" className="hover:text-white">Contact us</a>
       </div>
       <div className="px-6 py-1 text-[12px] text-[#717171] mb-4">
-        © 2024 AS-Tube LLC
+        © 2024 Alisword LLC
       </div>
 
       {/* Adsterra Sidebar Ad Slot */}
       <div className="px-4 mt-2">
         <AdsterraAd 
-          id="adsterra_sidebar_id" 
+          id="28678505" 
           width={200} 
           height={200} 
           className="bg-[#1a1a1a] rounded-xl border border-[#333]"

@@ -36,7 +36,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick, isAdmin, onAdminToggle, on
           <i className="fas fa-bars text-xl text-white"></i>
         </button>
         <div className="flex items-center space-x-1 cursor-pointer" onClick={() => window.location.reload()}>
-          <span className="text-xl font-bold tracking-tighter text-white">AS-Tube</span>
+          <span className="text-xl font-bold tracking-tighter text-white">Alisword</span>
         </div>
       </div>
 

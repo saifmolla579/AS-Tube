@@ -384,7 +384,7 @@ const App: React.FC = () => {
             <i className="fas fa-search text-gray-400 mr-3"></i>
             <input 
               type="text" 
-              placeholder="Search AS-Tube"
+              placeholder="Search Alisword"
               className="bg-transparent outline-none w-full text-sm placeholder-gray-500 text-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -401,27 +401,10 @@ const App: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-white font-bold text-sm">Admin Mode Active</h3>
-                  <div className="flex items-center space-x-2">
-                    <p className="text-xs text-gray-400">You can now upload and delete videos.</p>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/30 border border-white/10 flex items-center">
-                      <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${dbError ? 'bg-yellow-500' : 'bg-green-500'}`}></span>
-                      <span className="text-gray-300">{dbError ? 'DB Error' : 'DB Connected'}</span>
-                    </span>
-                  </div>
+                  <p className="text-xs text-gray-400">You can now upload and delete videos.</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
-                <button 
-                  onClick={() => setShowSetupGuide(!showSetupGuide)}
-                  className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border transition-all ${showSetupGuide ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10'}`}
-                >
-                  <i className="fas fa-book mr-1.5"></i>
-                  {showSetupGuide ? 'Hide Guide' : 'Setup Guide'}
-                </button>
-                <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${dbError ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/30' : 'bg-green-500/20 text-green-500 border border-green-500/30'}`}>
-                  <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${dbError ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
-                  <span>{dbError ? 'DB Error' : 'DB Connected'}</span>
-                </div>
                 <button 
                   onClick={handleAdminToggleRequest}
                   className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2"
@@ -431,86 +414,6 @@ const App: React.FC = () => {
                 </button>
               </div>
             </div>
-
-            {(dbError || showSetupGuide) && (
-              <div className={`${showSetupGuide && !dbError ? 'bg-blue-600/10 border-blue-500/20 text-blue-400' : 'bg-yellow-600/10 border-yellow-500/20 text-yellow-500'} border rounded-2xl p-6 backdrop-blur-sm transition-all animate-in fade-in slide-in-from-top-4 duration-300`}>
-                <div className="flex items-start space-x-4">
-                  <i className={`fas ${showSetupGuide && !dbError ? 'fa-info-circle' : 'fa-database'} text-2xl mt-1`}></i>
-                  <div className="flex-1">
-                    <h4 className="font-bold text-lg mb-2 text-white">{showSetupGuide && !dbError ? 'Database Setup Guide' : 'Database Setup Required'}</h4>
-                    <p className="text-sm mb-4 opacity-80">
-                      {dbError ? (
-                        <>Your videos are disappearing because the Supabase database is not ready. Error: <span className="font-mono bg-black/30 px-2 py-0.5 rounded text-red-400">{dbError}</span></>
-                      ) : (
-                        <>Follow these steps to ensure your videos are saved permanently in Supabase.</>
-                      )}
-                    </p>
-                    <div className="bg-blue-900/20 rounded-xl p-4 mb-4 border border-blue-500/30">
-                      <p className="text-xs font-bold mb-2 text-blue-400 uppercase tracking-widest flex items-center">
-                        <i className="fas fa-ad mr-2"></i>
-                        Adsterra Configuration:
-                      </p>
-                      <p className="text-[11px] text-gray-300 mb-2">
-                        To show your ads, search for <code className="bg-black/40 px-1 rounded text-yellow-400">adsterra_sidebar_id</code>, <code className="bg-black/40 px-1 rounded text-yellow-400">adsterra_main_banner_id</code>, and <code className="bg-black/40 px-1 rounded text-yellow-400">adsterra_player_id</code> in <code className="bg-black/40 px-1 rounded">App.tsx</code> and <code className="bg-black/40 px-1 rounded">Sidebar.tsx</code>, then replace them with your actual Adsterra Unit Keys.
-                      </p>
-                    </div>
-                    <div className="bg-black/40 rounded-xl p-4 mb-4 border border-red-500/30">
-                      <p className="text-xs font-bold mb-2 text-red-400 uppercase tracking-widest flex items-center">
-                        <i className="fas fa-exclamation-triangle mr-2"></i>
-                        Run this to completely RESET and FIX the table:
-                      </p>
-                      <pre className="text-[10px] font-mono whitespace-pre-wrap break-all text-blue-300">
-{`-- ১. আগের টেবিলটি মুছে ফেলুন (যাতে নতুন কলামগুলো যোগ হয়)
-drop table if exists videos;
-
--- ২. নতুন করে সঠিক কলামসহ টেবিল তৈরি করুন
-create table videos (
-  id text primary key,
-  title text not null,
-  description text,
-  url text not null,
-  thumbnail text,
-  duration text,
-  views text default '0',
-  likes integer default 0,
-  creator text default 'TR SAIF',
-  "isYoutube" boolean default false,
-  "isGoogleDrive" boolean default false,
-  "uploadedAt" text,
-  created_at timestamp with time zone default timezone('utc'::text, now())
-);
-
--- ৩. সিকিউরিটি অফ করুন (যাতে ভিডিও রিলোড করলে না হারায়)
-alter table videos disable row level security;
-
--- ৪. রিয়েল-টাইম আপডেট এনাবল করুন
-alter publication supabase_realtime add table videos;`}
-                      </pre>
-                    </div>
-                    <div className="flex flex-wrap gap-3 mt-4">
-                      <button 
-                        onClick={debugDatabase}
-                        disabled={isDebugging}
-                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-lg flex items-center"
-                      >
-                        <i className={`fas ${isDebugging ? 'fa-spinner fa-spin' : 'fa-vial'} mr-2`}></i>
-                        {isDebugging ? 'Testing...' : 'Test Connection'}
-                      </button>
-                      <button 
-                        onClick={() => window.location.reload()}
-                        className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-lg"
-                      >
-                        <i className="fas fa-sync-alt mr-2"></i>
-                        Refresh Page
-                      </button>
-                    </div>
-                    <p className="text-xs mt-4 opacity-60 italic">
-                      After running the SQL, refresh this page and try uploading again.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -532,7 +435,7 @@ alter publication supabase_realtime add table videos;`}
         {/* Adsterra Main Banner Ad Slot */}
         <div className="mb-8">
           <AdsterraAd 
-            id="adsterra_main_banner_id" 
+            id="28678491" 
             width={728} 
             height={90} 
             className="bg-[#1a1a1a] rounded-2xl border border-[#333] shadow-lg"
@@ -586,9 +489,12 @@ alter publication supabase_realtime add table videos;`}
         onVerify={handlePinVerify} 
       />
 
+      {/* Adsterra Popunder Ad Slot */}
+      <AdsterraAd id="28678470" format="popunder" />
+
       {/* Adsterra Social Bar Ad Slot */}
       <AdsterraAd 
-        id="adsterra_social_bar_id" 
+        id="28678508" 
         format="social-bar" 
       />
 
@@ -627,13 +533,20 @@ alter publication supabase_realtime add table videos;`}
             </div>
 
             {/* Adsterra Player Ad Slot */}
-            <div className="mb-6 px-4 md:px-0">
+            <div className="mb-6 px-4 md:px-0 flex flex-col items-center">
               <AdsterraAd 
-                id="adsterra_player_id" 
+                id="28678501" 
                 width={468} 
                 height={60} 
                 className="bg-[#1a1a1a] rounded-xl border border-[#333]"
               />
+              <div className="mt-2">
+                <AdsterraAd 
+                  id="28678512" 
+                  format="smartlink" 
+                  label="Download Video" 
+                />
+              </div>
             </div>
             
             <div className="p-4 md:p-0">
